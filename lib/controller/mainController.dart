@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:phishtesterflutter/helper/httpHelper.dart';
 
 
-Future<dynamic> checkUrl({BuildContext context, String url}) async {
+Future<dynamic> checkUrl({required BuildContext context, required String url}) async {
   Object body = {
     'url': url,
     'format': 'json',

@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:phishtesterflutter/controller/mainController.dart';
 import 'package:phishtesterflutter/widgets/customDialog.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_barcode_scanner/flutter_barcode_scanner.dart';
 
 /*
 * Phish: http://united-bank-africa.com
@@ -12,12 +14,19 @@ import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 * exk54411@eoopy.com 1qazxsw23edc
 */
 
-void main() {
-  runApp(MyApp());
+void main() => runApp(MyApp());
+
+class MyApp extends StatefulWidget {
+  @override
+  _MyAppState createState() => _MyAppState();
 }
 
-class MyApp extends StatelessWidget {
-  // This widget is the root of your application.
+class _MyAppState extends State<MyApp> {
+  @override
+  void initState() {
+    super.initState();
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -32,7 +41,7 @@ class MyApp extends StatelessWidget {
 }
 
 class MyHomePage extends StatefulWidget {
-  MyHomePage({Key key, this.title}) : super(key: key);
+  MyHomePage({required this.title});
   final String title;
 
   @override
@@ -45,7 +54,9 @@ class _MyHomePageState extends State<MyHomePage> {
   String _result = 'Enter a URL to check if it is valid';
   Color _resultColor = Colors.black;
 
-  StreamSubscription _intentDataStreamSubscription;
+  String _scanBarcode = 'Unknown';
+
+  late StreamSubscription _intentDataStreamSubscription;
 
   void _submit() async {
     if (_urlText.text.isEmpty) {
@@ -53,24 +64,23 @@ class _MyHomePageState extends State<MyHomePage> {
       return;
     }
 
-    if(!_urlText.text.startsWith('http://') && !_urlText.text.startsWith('https://')) {
+    if (!_urlText.text.startsWith('http://') && !_urlText.text.startsWith('https://')) {
       setState(() {
         _urlText.text = 'http://' + _urlText.text;
       });
     }
 
     bool _validURL = Uri.parse(_urlText.text).isAbsolute;
-    if(!_validURL) {
+    if (!_validURL) {
       msgDialog(context, 'Error', 'Please enter a valid URL!');
       return;
     }
-
 
     FocusScope.of(context).unfocus();
     var data = await checkUrl(context: context, url: _urlText.value.text);
     print(data);
 
-    if(!data['results']['in_database']) {
+    if (!data['results']['in_database']) {
       setState(() {
         _result = 'Status Unknown';
         _resultColor = Colors.grey;
@@ -78,7 +88,7 @@ class _MyHomePageState extends State<MyHomePage> {
       return;
     }
 
-    if(data['results']['verified']) {
+    if (data['results']['verified']) {
       if (data['results']['valid'])
         setState(() {
           _result = 'This site is a phish';
@@ -117,12 +127,11 @@ class _MyHomePageState extends State<MyHomePage> {
     super.initState();
 
     // For sharing or opening urls/text coming from outside the app while the app is in the memory
-    _intentDataStreamSubscription =
-        ReceiveSharingIntent.getTextStream().listen((String value) {
+    _intentDataStreamSubscription = ReceiveSharingIntent.getTextStream().listen((String value) {
       setState(() {
         _urlText.text = value;
       });
-      if(_urlText.text.isNotEmpty) {
+      if (_urlText.text.isNotEmpty) {
         print('hello stef');
         _submit();
       }
@@ -131,11 +140,14 @@ class _MyHomePageState extends State<MyHomePage> {
     });
 
     // For sharing or opening urls/text coming from outside the app while the app is closed
-    ReceiveSharingIntent.getInitialText().then((String value) {
+    ReceiveSharingIntent.getInitialText().then((String? value) async {
       setState(() {
-        _urlText.text = value;
+        if (value != null)
+          _urlText.text = value;
+        else
+          _urlText.text = "";
       });
-      if(_urlText.text.isNotEmpty) {
+      if (_urlText.text.isNotEmpty) {
         print('hello stef');
         _submit();
       }
@@ -147,6 +159,56 @@ class _MyHomePageState extends State<MyHomePage> {
     _intentDataStreamSubscription.cancel();
     _urlFocus.dispose();
     super.dispose();
+  }
+
+  Future<void> startBarcodeScanStream() async {
+    FlutterBarcodeScanner.getBarcodeStreamReceiver('#ff6666', 'Cancel', true, ScanMode.BARCODE)!.listen((barcode) => print(barcode));
+  }
+
+  Future<void> scanQR() async {
+    String barcodeScanRes;
+    // Platform messages may fail, so we use a try/catch PlatformException.
+    try {
+      barcodeScanRes = await FlutterBarcodeScanner.scanBarcode('#ff6666', 'Cancel', true, ScanMode.QR);
+      setState(() {
+        _urlText.text = barcodeScanRes;
+      });
+    } on PlatformException {
+      barcodeScanRes = 'Failed to get platform version.';
+    }
+
+    // If the widget was removed from the tree while the asynchronous platform
+    // message was in flight, we want to discard the reply rather than calling
+    // setState to update our non-existent appearance.
+    if (!mounted) return;
+
+    setState(() {
+      _scanBarcode = barcodeScanRes;
+    });
+  }
+
+  // Platform messages are asynchronous, so we initialize in an async method.
+  Future<void> scanBarcodeNormal() async {
+    String barcodeScanRes;
+    // Platform messages may fail, so we use a try/catch PlatformException.
+    try {
+      barcodeScanRes = await FlutterBarcodeScanner.scanBarcode('#ff6666', 'Cancel', true, ScanMode.BARCODE);
+      print(barcodeScanRes);
+      setState(() {
+        _urlText.text = barcodeScanRes;
+      });
+    } on PlatformException {
+      barcodeScanRes = 'Failed to get platform version.';
+    }
+
+    // If the widget was removed from the tree while the asynchronous platform
+    // message was in flight, we want to discard the reply rather than calling
+    // setState to update our non-existent appearance.
+    if (!mounted) return;
+
+    setState(() {
+      _scanBarcode = barcodeScanRes;
+    });
   }
 
   @override
@@ -165,65 +227,82 @@ class _MyHomePageState extends State<MyHomePage> {
       appBar: AppBar(
         title: Text(widget.title),
       ),
-      body: Container(
-        alignment: Alignment.center,
-        padding: const EdgeInsets.symmetric(horizontal: 10.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            TextFormField(
-              controller: _urlText,
-              focusNode: _urlFocus,
-              textInputAction: TextInputAction.next,
-              style: TextStyle(color: Colors.black, fontSize: 18),
-              decoration: InputDecoration(
-                  labelText: "Enter URL",
-                  labelStyle: TextStyle(
-                    color: Colors.black,
-                  ),
-                  focusedBorder: tffBorderFocused,
-                  enabledBorder: tffBorder,
-                  filled: true),
+      body: Flex(
+        direction: Axis.vertical,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: <Widget>[
+          ElevatedButton(
+            onPressed: () => scanBarcodeNormal(),
+            child: Text('Start barcode scan'),
+          ),
+          ElevatedButton(
+            onPressed: () => scanQR(),
+            child: Text('Start QR scan'),
+          ),
+          ElevatedButton(
+            onPressed: () => startBarcodeScanStream(),
+            child: Text('Start barcode scan stream'),
+          ),
+          Text(
+            'Scan result : $_scanBarcode\n',
+            style: TextStyle(fontSize: 20),
+          ),
+          Container(
+            alignment: Alignment.center,
+            padding: const EdgeInsets.symmetric(horizontal: 10.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: <Widget>[
+                TextFormField(
+                  controller: _urlText,
+                  focusNode: _urlFocus,
+                  textInputAction: TextInputAction.next,
+                  style: TextStyle(color: Colors.black, fontSize: 18),
+                  decoration: InputDecoration(
+                      labelText: "Enter URL",
+                      labelStyle: TextStyle(
+                        color: Colors.black,
+                      ),
+                      focusedBorder: tffBorderFocused,
+                      enabledBorder: tffBorder,
+                      filled: true),
+                ),
+                SizedBox(height: 20),
+                MaterialButton(
+                  onPressed: () => _submit(),
+                  color: Color(0xff006699),
+                  textColor: Colors.white,
+                  child: Text('Check URL'),
+                  minWidth: MediaQuery.of(context).size.width - 15,
+                  height: 55,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                SizedBox(height: 20),
+                MaterialButton(
+                  onPressed: () {
+                    setState(() {
+                      _result = 'Enter a URL to check if it is valid';
+                      _urlText.text = '';
+                      _resultColor = Colors.black;
+                    });
+                  },
+                  color: Color(0xff006699),
+                  textColor: Colors.white,
+                  child: Text('Reset'),
+                  minWidth: MediaQuery.of(context).size.width - 15,
+                  height: 55,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                SizedBox(height: 30),
+                Text(
+                  _result,
+                  style: TextStyle(color: _resultColor, fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                SizedBox(height: 30),
+              ],
             ),
-            SizedBox(height: 20),
-            MaterialButton(
-              onPressed: () => _submit(),
-              color: Color(0xff006699),
-              textColor: Colors.white,
-              child: Text('Check URL'),
-              minWidth: MediaQuery.of(context).size.width - 15,
-              height: 55,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10)),
-            ),
-            SizedBox(height: 20),
-            MaterialButton(
-              onPressed: () {
-                setState(() {
-                  _result = 'Enter a URL to check if it is valid';
-                  _urlText.text = '';
-                  _resultColor = Colors.black;
-                });
-              },
-              color: Color(0xff006699),
-              textColor: Colors.white,
-              child: Text('Reset'),
-              minWidth: MediaQuery.of(context).size.width - 15,
-              height: 55,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10)),
-            ),
-            SizedBox(height: 30),
-            Text(
-              _result,
-              style: TextStyle(
-                  color: _resultColor,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold),
-            ),
-            SizedBox(height: 30),
-          ],
-        ),
+          )
+        ],
       ),
     );
   }

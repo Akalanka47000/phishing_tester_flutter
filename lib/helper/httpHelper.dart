@@ -9,15 +9,15 @@ import 'dart:convert';
 import 'package:phishtesterflutter/widgets/loadingScreen.dart';
 
 Future<dynamic> httpPostRequest(
-    {@required BuildContext context,
-      @required String url,
-      @required Object body}) async {
+    {required BuildContext context,
+      required String url,
+      required Object body}) async {
   showDialog(
       context: context,
       barrierDismissible: false,
       builder: (_) => LoadingScreen());
   try {
-    var response = await http.post(url, body: body);
+    var response = await http.post(Uri.parse(url), body: body);
     var result = json.decode(response.body);
     Navigator.pop(context); //pop loading
     return result;
